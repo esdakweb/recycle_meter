@@ -11,9 +11,6 @@
     --panel: #1e293b;
     --text: #e2e8f0;
     --muted: #94a3b8;
-    --metal: #94a3b8;
-    --glass: #34d399;
-    --pet:   #60a5fa;
   }
   * { box-sizing: border-box; }
   body {
@@ -27,20 +24,9 @@
     align-items: center;
     padding: 32px 16px;
   }
-  header {
-    text-align: center;
-    margin-bottom: 24px;
-  }
-  h1 {
-    font-size: 2rem;
-    margin: 0 0 8px;
-    letter-spacing: 0.5px;
-  }
-  header p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.95rem;
-  }
+  header { text-align: center; margin-bottom: 24px; }
+  h1 { font-size: 2rem; margin: 0 0 8px; letter-spacing: 0.5px; }
+  header p { margin: 0; color: var(--muted); font-size: 0.95rem; }
   .card {
     width: min(1100px, 100%);
     background: var(--panel);
@@ -48,15 +34,14 @@
     padding: 20px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   }
-  #chart {
-    width: 100%;
-    height: 700px;
-  }
-  footer {
-    margin-top: 20px;
+  #chart { width: 100%; height: 700px; }
+  #status {
+    text-align: center;
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
+    padding: 20px;
   }
+  footer { margin-top: 20px; color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -68,25 +53,30 @@
 
 <div class="card">
   <div id="chart"></div>
+  <div id="status">Loading recycle_meter.csv…</div>
 </div>
 
 <footer>Press ▶ Play or drag the slider to explore each month.</footer>
 
 <script>
 // ---------------------------------------------------------------
-// 1. CSV DATA  — replace these rows with the contents of your
-//    recycle_meter.csv (keep the header line).
+// Config
 // ---------------------------------------------------------------
-const csvData = `month,metal,glass,pet
-recycle_meter.csv`;
+const CSV_FILE = 'recycle_meter.csv';
+const MATERIALS = ['metal', 'glass', 'pet'];
+const COLOR_MAP = {
+  metal: '#94a3b8',
+  glass: '#34d399',
+  pet:   '#60a5fa'
+};
 
 // ---------------------------------------------------------------
-// 2. Parse CSV
+// Helpers
 // ---------------------------------------------------------------
 function parseCSV(text) {
-  const lines = text.trim().split('\n');
+  const lines = text.trim().split(/\r?\n/);
   const headers = lines[0].split(',').map(h => h.trim());
-  return lines.slice(1).map(line => {
+  return lines.slice(1).filter(l => l.trim()).map(line => {
     const cells = line.split(',').map(c => c.trim());
     const row = {};
     headers.forEach((h, i) => row[h] = cells[i]);
@@ -94,209 +84,156 @@ function parseCSV(text) {
   });
 }
 
-const rows = parseCSV(csvData);
-const materials = ['metal', 'glass', 'pet'];
-const colorMap = {
-  metal: '#94a3b8',
-  glass: '#34d399',
-  pet:   '#60a5fa'
-};
-
-// Pretty month label (e.g. "2026-01" -> "Jan 2026")
 function formatMonth(m) {
-  const [y, mo] = m.split('-');
+  // "2026-01" -> "Jan 2026"; falls back to raw string if not matching
+  const match = /^(\d{4})-(\d{1,2})$/.exec(m);
+  if (!match) return m;
   const names = ['Jan','Feb','Mar','Apr','May','Jun',
                  'Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${names[parseInt(mo,10)-1]} ${y}`;
+  return `${names[parseInt(match[2],10)-1]} ${match[1]}`;
 }
 
-const monthLabels = rows.map(r => formatMonth(r.month));
-const maxVal = Math.max(...rows.flatMap(r => materials.map(m => +r[m])));
-
 // ---------------------------------------------------------------
-// 3. Build traces — one per material, initial frame = first month
+// Build chart
 // ---------------------------------------------------------------
-const traces = materials.map(mat => ({
-  type: 'bar',
-  orientation: 'h',           // horizontal bars
-  name: mat.toUpperCase(),
-  y: materials,               // materials on Y... wait, see note below
-  x: rows[0] ? materials.map(m => +rows[0][m]) : [],
-  marker: { color: colorMap[mat] },
-  text: rows[0] ? materials.map(m => +rows[0][m]) : [],
-  texttemplate: '%{text:.0f}',
-  textposition: 'outside',
-  hovertemplate: '<b>%{fullData.name}</b><br>%{x} kg<extra></extra>'
-}));
-
-// ---------------------------------------------------------------
-// 4. Actually we want MONTHS on Y and MATERIALS on X.
-//    A grouped horizontal bar with months on Y and 3 bars per
-//    month works best, but for an animation the classic layout is
-//    "one bar per material per frame". To satisfy your request
-//    literally (months on Y, materials on X), we build a SINGLE
-//    frame per month showing 3 horizontal bars — but a horizontal
-//    bar chart has categories on Y. So instead we use a regular
-//    vertical bar chart with months on Y via a trick — no.
-//
-//    The correct literal interpretation:
-//      • X axis = materials (categorical)
-//      • Y axis = month (categorical)
-//      • Each cell = value
-//    That's a heatmap / matrix, not a bar chart. If you really want
-//    bars, the cleanest is: X = material, Y = amount, one frame per
-//    month. We already did that in the previous version.
-//
-//    Below is the version that matches your words literally:
-//    MONTHS on Y, MATERIALS on X, bars growing per month.
-// ---------------------------------------------------------------
-
-// Rebuild: grouped horizontal bars — one group per month,
-// three bars per group (metal, glass, pet), animated over months.
-const groupedTraces = materials.map(mat => ({
-  type: 'bar',
-  orientation: 'h',
-  name: mat.toUpperCase(),
-  y: monthLabels,                                    // months on Y
-  x: rows.map(r => +r[mat]),                         // values on X
-  marker: { color: colorMap[mat] },
-  text: rows.map(r => +r[mat]),
-  texttemplate: '%{text:.0f}',
-  textposition: 'outside',
-  hovertemplate: `<b>${mat.toUpperCase()}</b><br>%{y}: %{x} kg<extra></extra>`
-}));
-
-// Animation for a grouped horizontal bar chart is not natural,
-// so instead we use a slider that filters which months are visible.
-const steps = rows.map((r, i) => {
-  // Show months 0..i cumulatively? No — show only current month.
-  const visibleY = monthLabels.map((_, j) => j === i);
-  return {
-    label: monthLabels[i],
-    method: 'update',
-    args: [
-      {
-        // Toggle bar visibility per month using opacity trick:
-        // we can't hide individual bars, so we slice data instead.
-      },
-      {
-        'yaxis.range': [monthLabels[i], monthLabels[i]],
-        'title.text': `♻️ Recycling — ${monthLabels[i]}`
-      }
-    ]
-  };
-});
-
-// Simpler & prettier: single-frame grouped horizontal bars
-// (all months visible at once) + a slider that highlights one month.
-// This gives the visual you asked for: months on Y, materials on X.
-const layout = {
-  title: {
-    text: '♻️ 2026 Recycling Progress — months vs materials',
-    font: { size: 22, color: '#e2e8f0' },
-    x: 0.5
-  },
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor: 'rgba(0,0,0,0)',
-  font: { color: '#e2e8f0', family: 'Segoe UI, Arial' },
-  barmode: 'group',
-  bargap: 0.25,
-  bargroupgap: 0.08,
-  xaxis: {
-    title: 'Amount collected (kg)',
-    gridcolor: 'rgba(148,163,184,0.15)',
-    zerolinecolor: 'rgba(148,163,184,0.3)',
-    range: [0, maxVal * 1.15]
-  },
-  yaxis: {
-    title: 'Month',
-    categoryorder: 'array',
-    categoryarray: monthLabels.slice().reverse(),  // Jan at top
-    gridcolor: 'rgba(148,163,184,0.08)'
-  },
-  legend: {
-    orientation: 'h',
-    y: 1.08,
-    x: 0.5,
-    xanchor: 'center'
-  },
-  margin: { l: 100, r: 40, t: 100, b: 60 },
-  height: 700,
-  updatemenus: [{
-    type: 'buttons',
-    direction: 'left',
-    x: 0.02, y: 1.14,
-    showactive: false,
-    buttons: [
-      {
-        label: '▶ Play',
-        method: 'animate',
-        args: [null, {
-          frame: { duration: 700, redraw: true },
-          fromcurrent: true,
-          transition: { duration: 400, easing: 'cubic-in-out' }
-        }]
-      },
-      {
-        label: '⏸ Pause',
-        method: 'animate',
-        args: [[null], {
-          frame: { duration: 0, redraw: true },
-          mode: 'immediate',
-          transition: { duration: 0 }
-        }]
-      }
-    ]
-  }],
-  sliders: [{
-    active: 0,
-    x: 0.1, len: 0.85, y: -0.05,
-    currentvalue: { prefix: 'Month: ', font: { size: 14 } },
-    steps: rows.map((r, i) => ({
-      label: monthLabels[i],
-      method: 'animate',
-      args: [[monthLabels[i]], {
-        mode: 'immediate',
-        frame: { duration: 500, redraw: true },
-        transition: { duration: 300 }
-      }]
-    }))
-  }]
-};
-
-// ---------------------------------------------------------------
-// 5. Build frames — one frame per month showing that month's bars
-//    for all three materials. This gives a true animation while
-//    keeping months on Y and materials on X.
-// ---------------------------------------------------------------
-const frames = rows.map((r, i) => ({
-  name: monthLabels[i],
-  data: materials.map(mat => ({
-    type: 'bar',
-    orientation: 'h',
-    name: mat.toUpperCase(),
-    y: [monthLabels[i]],          // single month row
-    x: [+r[mat]],
-    marker: { color: colorMap[mat] },
-    text: [`${+r[mat]} kg`],
-    textposition: 'outside',
-    hovertemplate: `<b>${mat.toUpperCase()}</b><br>${monthLabels[i]}: %{x} kg<extra></extra>`
-  })),
-  layout: {
-    title: { text: `♻️ Recycling — ${monthLabels[i]}` }
+function buildChart(rows) {
+  if (!rows.length) {
+    document.getElementById('status').textContent =
+      'CSV file is empty.';
+    return;
   }
-}));
 
-// Initial data (first month)
-const initialData = frames[0].data;
+  const monthLabels = rows.map(r => formatMonth(r.month));
+  const maxVal = Math.max(
+    ...rows.flatMap(r => MATERIALS.map(m => +r[m] || 0))
+  );
 
-Plotly.newPlot('chart', initialData, layout, {
-  responsive: true,
-  displayModeBar: true,
-  displaylogo: false
-}).then(() => {
-  Plotly.addFrames('chart', frames);
-});
+  // --- One frame per month: 3 horizontal bars (one per material) ---
+  const frames = rows.map((r, i) => ({
+    name: monthLabels[i],
+    data: MATERIALS.map(mat => ({
+      type: 'bar',
+      orientation: 'h',
+      name: mat.toUpperCase(),
+      y: [monthLabels[i]],            // month on Y
+      x: [+r[mat] || 0],              // value on X
+      marker: { color: COLOR_MAP[mat] },
+      text: [`${+r[mat] || 0} kg`],
+      textposition: 'outside',
+      cliponaxis: false,
+      hovertemplate:
+        `<b>${mat.toUpperCase()}</b><br>${monthLabels[i]}: %{x} kg<extra></extra>`
+    })),
+    layout: {
+      title: { text: `♻️ Recycling — ${monthLabels[i]}` }
+    }
+  }));
+
+  const layout = {
+    title: {
+      text: `♻️ Recycling — ${monthLabels[0]}`,
+      font: { size: 22, color: '#e2e8f0' },
+      x: 0.5
+    },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: '#e2e8f0', family: 'Segoe UI, Arial' },
+    barmode: 'group',
+    bargap: 0.4,
+    bargroupgap: 0.1,
+    xaxis: {
+      title: 'Amount collected (kg)',
+      gridcolor: 'rgba(148,163,184,0.15)',
+      zerolinecolor: 'rgba(148,163,184,0.3)',
+      range: [0, maxVal * 1.2]
+    },
+    yaxis: {
+      title: 'Month',
+      gridcolor: 'rgba(148,163,184,0.08)',
+      // Only one category visible per frame, but keep the axis tidy:
+      type: 'category'
+    },
+    legend: {
+      orientation: 'h',
+      y: 1.1, x: 0.5, xanchor: 'center'
+    },
+    margin: { l: 100, r: 60, t: 100, b: 90 },
+    height: 700,
+    updatemenus: [{
+      type: 'buttons',
+      direction: 'left',
+      x: 0.02, y: 1.16,
+      showactive: false,
+      buttons: [
+        {
+          label: '▶ Play',
+          method: 'animate',
+          args: [null, {
+            frame: { duration: 800, redraw: true },
+            fromcurrent: true,
+            transition: { duration: 400, easing: 'cubic-in-out' }
+          }]
+        },
+        {
+          label: '⏸ Pause',
+          method: 'animate',
+          args: [[null], {
+            frame: { duration: 0, redraw: true },
+            mode: 'immediate',
+            transition: { duration: 0 }
+          }]
+        }
+      ]
+    }],
+    sliders: [{
+      active: 0,
+      x: 0.1, len: 0.85, y: -0.02,
+      currentvalue: {
+        prefix: 'Month: ',
+        font: { size: 14, color: '#e2e8f0' }
+      },
+      font: { color: '#e2e8f0' },
+      steps: monthLabels.map((label, i) => ({
+        label,
+        method: 'animate',
+        args: [[label], {
+          mode: 'immediate',
+          frame: { duration: 500, redraw: true },
+          transition: { duration: 300 }
+        }]
+      }))
+    }]
+  };
+
+  // Initial trace data = first frame
+  const initialData = frames[0].data;
+
+  Plotly.newPlot('chart', initialData, layout, {
+    responsive: true,
+    displayModeBar: true,
+    displaylogo: false
+  }).then(() => {
+    Plotly.addFrames('chart', frames);
+    document.getElementById('status').style.display = 'none';
+  });
+}
+
+// ---------------------------------------------------------------
+// Load CSV then build
+// ---------------------------------------------------------------
+fetch(CSV_FILE)
+  .then(resp => {
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} — ${resp.statusText}`);
+    return resp.text();
+  })
+  .then(text => buildChart(parseCSV(text)))
+  .catch(err => {
+    document.getElementById('status').innerHTML =
+      `⚠️ Could not load <code>${CSV_FILE}</code>: ${err.message}<br>` +
+      `Make sure the CSV file is in the same folder and that you're ` +
+      `serving the page over <strong>http://</strong> (not file://).`;
+    console.error(err);
+  });
 </script>
 </body>
 </html>
