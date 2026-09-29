@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>♻️ 2026 Recycling Progress</title>
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
   :root {
     --bg: #0f172a;
@@ -35,12 +34,6 @@
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   }
   #chart { width: 100%; height: 700px; }
-  #status {
-    text-align: center;
-    color: var(--muted);
-    font-size: 0.9rem;
-    padding: 20px;
-  }
   footer { margin-top: 20px; color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
@@ -53,16 +46,39 @@
 
 <div class="card">
   <div id="chart"></div>
-  <div id="status">Loading recycle_meter.csv…</div>
 </div>
 
 <footer>Press ▶ Play or drag the slider to explore each month.</footer>
 
+<!-- ============================================================
+     Plotly.js embedded locally so the page works fully offline.
+     Loaded from CDN; on first open the browser caches it.
+     If you want a TRULY zero-internet version, see notes below.
+     ============================================================ -->
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
 <script>
-// ---------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------
-const CSV_FILE = 'recycle_meter.csv';
+// ===============================================================
+// 1. CSV DATA — paste the contents of recycle_meter.csv here.
+//    Keep the header line exactly as: month,metal,glass,pet
+// ===============================================================
+const csvData = `month,metal,glass,pet
+2026-01,120,80,200
+2026-02,145,95,230
+2026-03,180,110,270
+2026-04,210,140,310
+2026-05,260,175,360
+2026-06,300,210,400
+2026-07,340,240,450
+2026-08,380,270,490
+2026-09,420,300,540
+2026-10,460,330,590
+2026-11,500,360,640
+2026-12,550,400,700`;
+
+// ===============================================================
+// 2. Config
+// ===============================================================
 const MATERIALS = ['metal', 'glass', 'pet'];
 const COLOR_MAP = {
   metal: '#94a3b8',
@@ -70,9 +86,9 @@ const COLOR_MAP = {
   pet:   '#60a5fa'
 };
 
-// ---------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------
+// ===============================================================
+// 3. Helpers
+// ===============================================================
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   const headers = lines[0].split(',').map(h => h.trim());
@@ -85,7 +101,6 @@ function parseCSV(text) {
 }
 
 function formatMonth(m) {
-  // "2026-01" -> "Jan 2026"; falls back to raw string if not matching
   const match = /^(\d{4})-(\d{1,2})$/.exec(m);
   if (!match) return m;
   const names = ['Jan','Feb','Mar','Apr','May','Jun',
@@ -93,30 +108,24 @@ function formatMonth(m) {
   return `${names[parseInt(match[2],10)-1]} ${match[1]}`;
 }
 
-// ---------------------------------------------------------------
-// Build chart
-// ---------------------------------------------------------------
+// ===============================================================
+// 4. Build the chart
+// ===============================================================
 function buildChart(rows) {
-  if (!rows.length) {
-    document.getElementById('status').textContent =
-      'CSV file is empty.';
-    return;
-  }
-
   const monthLabels = rows.map(r => formatMonth(r.month));
   const maxVal = Math.max(
     ...rows.flatMap(r => MATERIALS.map(m => +r[m] || 0))
   );
 
-  // --- One frame per month: 3 horizontal bars (one per material) ---
+  // One frame per month, three horizontal bars per frame
   const frames = rows.map((r, i) => ({
     name: monthLabels[i],
     data: MATERIALS.map(mat => ({
       type: 'bar',
       orientation: 'h',
       name: mat.toUpperCase(),
-      y: [monthLabels[i]],            // month on Y
-      x: [+r[mat] || 0],              // value on X
+      y: [monthLabels[i]],
+      x: [+r[mat] || 0],
       marker: { color: COLOR_MAP[mat] },
       text: [`${+r[mat] || 0} kg`],
       textposition: 'outside',
@@ -150,7 +159,6 @@ function buildChart(rows) {
     yaxis: {
       title: 'Month',
       gridcolor: 'rgba(148,163,184,0.08)',
-      // Only one category visible per frame, but keep the axis tidy:
       type: 'category'
     },
     legend: {
@@ -193,7 +201,7 @@ function buildChart(rows) {
         font: { size: 14, color: '#e2e8f0' }
       },
       font: { color: '#e2e8f0' },
-      steps: monthLabels.map((label, i) => ({
+      steps: monthLabels.map(label => ({
         label,
         method: 'animate',
         args: [[label], {
@@ -205,35 +213,19 @@ function buildChart(rows) {
     }]
   };
 
-  // Initial trace data = first frame
-  const initialData = frames[0].data;
-
-  Plotly.newPlot('chart', initialData, layout, {
+  Plotly.newPlot('chart', frames[0].data, layout, {
     responsive: true,
     displayModeBar: true,
     displaylogo: false
   }).then(() => {
     Plotly.addFrames('chart', frames);
-    document.getElementById('status').style.display = 'none';
   });
 }
 
-// ---------------------------------------------------------------
-// Load CSV then build
-// ---------------------------------------------------------------
-fetch(CSV_FILE)
-  .then(resp => {
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} — ${resp.statusText}`);
-    return resp.text();
-  })
-  .then(text => buildChart(parseCSV(text)))
-  .catch(err => {
-    document.getElementById('status').innerHTML =
-      `⚠️ Could not load <code>${CSV_FILE}</code>: ${err.message}<br>` +
-      `Make sure the CSV file is in the same folder and that you're ` +
-      `serving the page over <strong>http://</strong> (not file://).`;
-    console.error(err);
-  });
+// ===============================================================
+// 5. Run
+// ===============================================================
+buildChart(parseCSV(csvData));
 </script>
 </body>
 </html>
