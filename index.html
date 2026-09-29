@@ -10,6 +10,7 @@
     --panel: #1e293b;
     --text: #e2e8f0;
     --muted: #94a3b8;
+    --accent: #34d399;
   }
   * { box-sizing: border-box; }
   body {
@@ -34,6 +35,42 @@
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   }
   #chart { width: 100%; height: 700px; }
+  #loader {
+    text-align: center;
+    padding: 40px 20px;
+  }
+  #loader p { color: var(--muted); margin: 0 0 20px; font-size: 1rem; }
+  #loader button,
+  #loader label {
+    display: inline-block;
+    background: var(--accent);
+    color: #0f172a;
+    border: none;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  #loader button:hover,
+  #loader label:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(52, 211, 153, 0.35);
+  }
+  #loader input[type="file"] { display: none; }
+  #loader .hint {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 16px;
+    line-height: 1.5;
+  }
+  #loader code {
+    background: rgba(148,163,184,0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
   footer { margin-top: 20px; color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
@@ -45,7 +82,20 @@
 </header>
 
 <div class="card">
-  <div id="chart"></div>
+  <div id="chart" style="display:none;"></div>
+  <div id="loader">
+    <p id="loaderMsg">Φόρτωση του <code>recycle_meter.csv</code>…</p>
+    <label for="csvInput" id="fileLabel" style="display:none;">
+      📂 Επιλογή αρχείου CSV
+    </label>
+    <input type="file" id="csvInput" accept=".csv,text/csv">
+    <div class="hint" id="loaderHint" style="display:none;">
+      Λόγω περιορισμών ασφαλείας του browser όταν ανοίγει τοπικά (file://),
+      παρακαλώ επιλέξτε το <code>recycle_meter.csv</code> από τον ίδιο φάκελο.<br>
+      Ή σερβίρετε τη σελίδα μέσω HTTP (π.χ. <code>python -m http.server</code>)
+      για αυτόματη φόρτωση.
+    </div>
+  </div>
 </div>
 
 <footer>Πατήστε ▶ Play ή σύρετε το slider για να δείτε κάθε μήνα.</footer>
@@ -54,22 +104,9 @@
 
 <script>
 // ===============================================================
-// 1. CSV DATA — add new months at the bottom as the year goes on.
-//    Each row is that month's NEW amount; the script accumulates.
+// Config
 // ===============================================================
-const csvData = `month,metal,glass,pet
-Ιαν,304383,59630,1627714
-Φεβ,314742,66614,1727514
-Μαρ,355178,61085,1941433
-Απρ,384146,66138,1895017
-Μαϊ,450766,75206,2128548
-Ιουν,553685,97181,2339078
-Ιουλ,324610,29950,1322827
-Αυγ,11513,2551,65289`;
-
-// ===============================================================
-// 2. Config
-// ===============================================================
+const CSV_FILE = 'recycle_meter.csv';
 const MATERIALS = ['metal', 'glass', 'pet'];
 const COLOR_MAP = {
   metal: '#94a3b8',
@@ -83,9 +120,11 @@ const MATERIAL_LABELS = {
 };
 
 // ===============================================================
-// 3. Helpers
+// Helpers
 // ===============================================================
 function parseCSV(text) {
+  // Strip BOM if present
+  text = text.replace(/^\uFEFF/, '');
   const lines = text.trim().split(/\r?\n/);
   const headers = lines[0].split(',').map(h => h.trim());
   return lines.slice(1).filter(l => l.trim()).map(line => {
@@ -101,12 +140,17 @@ function formatNumber(n) {
 }
 
 // ===============================================================
-// 4. Build the chart with CUMULATIVE totals per frame
+// Build the chart with CUMULATIVE totals per frame
 // ===============================================================
 function buildChart(rows) {
+  if (!rows.length) {
+    showError('Το αρχείο CSV είναι κενό.');
+    return;
+  }
+
   const monthLabels = rows.map(r => r.month);
 
-  // --- Accumulate: monthly frame shows running total up to that month
+  // Accumulate running totals
   const cumulative = [];
   const running = { metal: 0, glass: 0, pet: 0 };
   rows.forEach(r => {
@@ -118,7 +162,6 @@ function buildChart(rows) {
     ...cumulative.flatMap(r => MATERIALS.map(m => +r[m] || 0))
   );
 
-  // --- One frame per month — three horizontal bars (running totals)
   const frames = cumulative.map((r, i) => ({
     name: monthLabels[i],
     data: MATERIALS.map(mat => ({
@@ -153,7 +196,7 @@ function buildChart(rows) {
     bargap: 0.45,
     bargroupgap: 0.12,
     xaxis: {
-      title: 'Σωρευτική ποσότητα (τεμάχια)',
+      title: 'Σωρευτική ποσότητα (kg)',
       gridcolor: 'rgba(148,163,184,0.15)',
       zerolinecolor: 'rgba(148,163,184,0.3)',
       range: [0, maxVal * 1.25],
@@ -218,6 +261,10 @@ function buildChart(rows) {
     }]
   };
 
+  // Hide loader, show chart
+  document.getElementById('loader').style.display = 'none';
+  document.getElementById('chart').style.display = 'block';
+
   Plotly.newPlot('chart', frames[0].data, layout, {
     responsive: true,
     displayModeBar: true,
@@ -228,9 +275,64 @@ function buildChart(rows) {
 }
 
 // ===============================================================
-// 5. Run
+// Loader UI helpers
 // ===============================================================
-buildChart(parseCSV(csvData));
+function showFilePicker(reason) {
+  document.getElementById('loaderMsg').textContent =
+    'Δεν ήταν δυνατή η αυτόματη φόρτωση του recycle_meter.csv.';
+  document.getElementById('fileLabel').style.display = 'inline-block';
+  const hint = document.getElementById('loaderHint');
+  hint.style.display = 'block';
+  if (reason) hint.insertAdjacentHTML('afterbegin', `<p style="color:#f87171;margin-bottom:12px;">${reason}</p>`);
+}
+
+function showError(msg) {
+  document.getElementById('loaderMsg').innerHTML =
+    `<span style="color:#f87171;">⚠️ ${msg}</span>`;
+}
+
+// ===============================================================
+// Load strategy:
+//   1. Try fetch() — works when served over HTTP
+//   2. If that fails (file:// CORS), show file picker
+//   3. User picks the CSV → read via FileReader
+// ===============================================================
+function tryFetch() {
+  fetch(CSV_FILE)
+    .then(resp => {
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return resp.text();
+    })
+    .then(text => {
+      const rows = parseCSV(text);
+      if (!rows.length) throw new Error('Το CSV δεν περιέχει δεδομένα.');
+      buildChart(rows);
+    })
+    .catch(err => {
+      // Most likely file:// — show picker
+      showFilePicker(`(${err.message})`);
+    });
+}
+
+// File input handler
+document.getElementById('csvInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const rows = parseCSV(ev.target.result);
+      if (!rows.length) throw new Error('Το CSV δεν περιέχει δεδομένα.');
+      buildChart(rows);
+    } catch (err) {
+      showError('Σφάλμα ανάγνωσης CSV: ' + err.message);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+});
+
+// Kick off
+tryFetch();
 </script>
 </body>
 </html>
