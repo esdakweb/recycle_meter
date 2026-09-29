@@ -41,7 +41,7 @@
 
 <header>
   <h1>♻️ Πρόοδος Ανακύκλωσης 2026</h1>
-  <p>Μηνιαία συλλογή μετάλλου, γυαλιού και PET</p>
+  <p>Σωρευτική συλλογή μετάλλου, γυαλιού και PET</p>
 </header>
 
 <div class="card">
@@ -50,12 +50,12 @@
 
 <footer>Πατήστε ▶ Play ή σύρετε το slider για να δείτε κάθε μήνα.</footer>
 
-<!-- Plotly.js — on first open the browser caches it, then works offline -->
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 
 <script>
 // ===============================================================
-// 1. CSV DATA — your recycle_meter.csv contents
+// 1. CSV DATA — add new months at the bottom as the year goes on.
+//    Each row is that month's NEW amount; the script accumulates.
 // ===============================================================
 const csvData = `month,metal,glass,pet
 Ιαν,304383,59630,1627714
@@ -72,9 +72,9 @@ const csvData = `month,metal,glass,pet
 // ===============================================================
 const MATERIALS = ['metal', 'glass', 'pet'];
 const COLOR_MAP = {
-  metal: '#94a3b8',   // grey
-  glass: '#34d399',   // green
-  pet:   '#60a5fa'    // blue
+  metal: '#94a3b8',
+  glass: '#34d399',
+  pet:   '#60a5fa'
 };
 const MATERIAL_LABELS = {
   metal: 'Μέταλλο',
@@ -97,21 +97,29 @@ function parseCSV(text) {
 }
 
 function formatNumber(n) {
-  // Greek locale thousand separator (dot): 1.627.714
   return new Intl.NumberFormat('el-GR').format(n);
 }
 
 // ===============================================================
-// 4. Build the chart
+// 4. Build the chart with CUMULATIVE totals per frame
 // ===============================================================
 function buildChart(rows) {
   const monthLabels = rows.map(r => r.month);
+
+  // --- Accumulate: monthly frame shows running total up to that month
+  const cumulative = [];
+  const running = { metal: 0, glass: 0, pet: 0 };
+  rows.forEach(r => {
+    MATERIALS.forEach(m => running[m] += (+r[m] || 0));
+    cumulative.push({ month: r.month, ...running });
+  });
+
   const maxVal = Math.max(
-    ...rows.flatMap(r => MATERIALS.map(m => +r[m] || 0))
+    ...cumulative.flatMap(r => MATERIALS.map(m => +r[m] || 0))
   );
 
-  // One frame per month — three horizontal bars
-  const frames = rows.map((r, i) => ({
+  // --- One frame per month — three horizontal bars (running totals)
+  const frames = cumulative.map((r, i) => ({
     name: monthLabels[i],
     data: MATERIALS.map(mat => ({
       type: 'bar',
@@ -125,16 +133,16 @@ function buildChart(rows) {
       cliponaxis: false,
       hovertemplate:
         `<b>${MATERIAL_LABELS[mat]}</b><br>` +
-        `${monthLabels[i]}: %{x:,} kg<extra></extra>`
+        `Έως ${monthLabels[i]} 2026: %{x:,} kg<extra></extra>`
     })),
     layout: {
-      title: { text: `♻️ Ανακύκλωση — ${monthLabels[i]} 2026` }
+      title: { text: `♻️ Σύνολο έως ${monthLabels[i]} 2026` }
     }
   }));
 
   const layout = {
     title: {
-      text: `♻️ Ανακύκλωση — ${monthLabels[0]} 2026`,
+      text: `♻️ Σύνολο έως ${monthLabels[0]} 2026`,
       font: { size: 22, color: '#e2e8f0' },
       x: 0.5
     },
@@ -145,7 +153,7 @@ function buildChart(rows) {
     bargap: 0.45,
     bargroupgap: 0.12,
     xaxis: {
-      title: 'Ποσότητα που συλλέχθηκε (τεμάχια)',
+      title: 'Σωρευτική ποσότητα (kg)',
       gridcolor: 'rgba(148,163,184,0.15)',
       zerolinecolor: 'rgba(148,163,184,0.3)',
       range: [0, maxVal * 1.25],
@@ -162,7 +170,7 @@ function buildChart(rows) {
       y: 1.1, x: 0.5, xanchor: 'center',
       font: { size: 13 }
     },
-    margin: { l: 100, r: 80, t: 110, b: 100 },
+    margin: { l: 100, r: 90, t: 110, b: 100 },
     height: 700,
     updatemenus: [{
       type: 'buttons',
