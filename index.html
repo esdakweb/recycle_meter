@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="el">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>♻️ 2026 Recycling Progress</title>
+<title>♻️ Πρόοδος Ανακύκλωσης 2026</title>
 <style>
   :root {
     --bg: #0f172a;
@@ -40,50 +40,46 @@
 <body>
 
 <header>
-  <h1>♻️ 2026 Recycling Progress</h1>
-  <p>Monthly collection of metal, glass and PET</p>
+  <h1>♻️ Πρόοδος Ανακύκλωσης 2026</h1>
+  <p>Μηνιαία συλλογή μετάλλου, γυαλιού και PET</p>
 </header>
 
 <div class="card">
   <div id="chart"></div>
 </div>
 
-<footer>Press ▶ Play or drag the slider to explore each month.</footer>
+<footer>Πατήστε ▶ Play ή σύρετε το slider για να δείτε κάθε μήνα.</footer>
 
-<!-- ============================================================
-     Plotly.js embedded locally so the page works fully offline.
-     Loaded from CDN; on first open the browser caches it.
-     If you want a TRULY zero-internet version, see notes below.
-     ============================================================ -->
+<!-- Plotly.js — on first open the browser caches it, then works offline -->
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 
 <script>
 // ===============================================================
-// 1. CSV DATA — paste the contents of recycle_meter.csv here.
-//    Keep the header line exactly as: month,metal,glass,pet
+// 1. CSV DATA — your recycle_meter.csv contents
 // ===============================================================
 const csvData = `month,metal,glass,pet
-2026-01,120,80,200
-2026-02,145,95,230
-2026-03,180,110,270
-2026-04,210,140,310
-2026-05,260,175,360
-2026-06,300,210,400
-2026-07,340,240,450
-2026-08,380,270,490
-2026-09,420,300,540
-2026-10,460,330,590
-2026-11,500,360,640
-2026-12,550,400,700`;
+Ιαν,304383,59630,1627714
+Φεβ,314742,66614,1727514
+Μαρ,355178,61085,1941433
+Απρ,384146,66138,1895017
+Μαϊ,450766,75206,2128548
+Ιουν,553685,97181,2339078
+Ιουλ,324610,29950,1322827
+Αυγ,11513,2551,65289`;
 
 // ===============================================================
 // 2. Config
 // ===============================================================
 const MATERIALS = ['metal', 'glass', 'pet'];
 const COLOR_MAP = {
-  metal: '#94a3b8',
-  glass: '#34d399',
-  pet:   '#60a5fa'
+  metal: '#94a3b8',   // grey
+  glass: '#34d399',   // green
+  pet:   '#60a5fa'    // blue
+};
+const MATERIAL_LABELS = {
+  metal: 'Μέταλλο',
+  glass: 'Γυαλί',
+  pet:   'PET'
 };
 
 // ===============================================================
@@ -100,47 +96,45 @@ function parseCSV(text) {
   });
 }
 
-function formatMonth(m) {
-  const match = /^(\d{4})-(\d{1,2})$/.exec(m);
-  if (!match) return m;
-  const names = ['Jan','Feb','Mar','Apr','May','Jun',
-                 'Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${names[parseInt(match[2],10)-1]} ${match[1]}`;
+function formatNumber(n) {
+  // Greek locale thousand separator (dot): 1.627.714
+  return new Intl.NumberFormat('el-GR').format(n);
 }
 
 // ===============================================================
 // 4. Build the chart
 // ===============================================================
 function buildChart(rows) {
-  const monthLabels = rows.map(r => formatMonth(r.month));
+  const monthLabels = rows.map(r => r.month);
   const maxVal = Math.max(
     ...rows.flatMap(r => MATERIALS.map(m => +r[m] || 0))
   );
 
-  // One frame per month, three horizontal bars per frame
+  // One frame per month — three horizontal bars
   const frames = rows.map((r, i) => ({
     name: monthLabels[i],
     data: MATERIALS.map(mat => ({
       type: 'bar',
       orientation: 'h',
-      name: mat.toUpperCase(),
+      name: MATERIAL_LABELS[mat],
       y: [monthLabels[i]],
       x: [+r[mat] || 0],
       marker: { color: COLOR_MAP[mat] },
-      text: [`${+r[mat] || 0} kg`],
+      text: [formatNumber(+r[mat] || 0)],
       textposition: 'outside',
       cliponaxis: false,
       hovertemplate:
-        `<b>${mat.toUpperCase()}</b><br>${monthLabels[i]}: %{x} kg<extra></extra>`
+        `<b>${MATERIAL_LABELS[mat]}</b><br>` +
+        `${monthLabels[i]}: %{x:,} kg<extra></extra>`
     })),
     layout: {
-      title: { text: `♻️ Recycling — ${monthLabels[i]}` }
+      title: { text: `♻️ Ανακύκλωση — ${monthLabels[i]} 2026` }
     }
   }));
 
   const layout = {
     title: {
-      text: `♻️ Recycling — ${monthLabels[0]}`,
+      text: `♻️ Ανακύκλωση — ${monthLabels[0]} 2026`,
       font: { size: 22, color: '#e2e8f0' },
       x: 0.5
     },
@@ -148,24 +142,27 @@ function buildChart(rows) {
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: { color: '#e2e8f0', family: 'Segoe UI, Arial' },
     barmode: 'group',
-    bargap: 0.4,
-    bargroupgap: 0.1,
+    bargap: 0.45,
+    bargroupgap: 0.12,
     xaxis: {
-      title: 'Amount collected (kg)',
+      title: 'Ποσότητα που συλλέχθηκε (kg)',
       gridcolor: 'rgba(148,163,184,0.15)',
       zerolinecolor: 'rgba(148,163,184,0.3)',
-      range: [0, maxVal * 1.2]
+      range: [0, maxVal * 1.25],
+      tickformat: ',.0f',
+      separatethousands: true
     },
     yaxis: {
-      title: 'Month',
+      title: 'Μήνας',
       gridcolor: 'rgba(148,163,184,0.08)',
       type: 'category'
     },
     legend: {
       orientation: 'h',
-      y: 1.1, x: 0.5, xanchor: 'center'
+      y: 1.1, x: 0.5, xanchor: 'center',
+      font: { size: 13 }
     },
-    margin: { l: 100, r: 60, t: 100, b: 90 },
+    margin: { l: 100, r: 80, t: 110, b: 100 },
     height: 700,
     updatemenus: [{
       type: 'buttons',
@@ -177,7 +174,7 @@ function buildChart(rows) {
           label: '▶ Play',
           method: 'animate',
           args: [null, {
-            frame: { duration: 800, redraw: true },
+            frame: { duration: 900, redraw: true },
             fromcurrent: true,
             transition: { duration: 400, easing: 'cubic-in-out' }
           }]
@@ -197,7 +194,7 @@ function buildChart(rows) {
       active: 0,
       x: 0.1, len: 0.85, y: -0.02,
       currentvalue: {
-        prefix: 'Month: ',
+        prefix: 'Μήνας: ',
         font: { size: 14, color: '#e2e8f0' }
       },
       font: { color: '#e2e8f0' },
