@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<title>Recycling Meter 2026 — Analog Gauges</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#131c2e;
+    --panel2:#0f172a;
+    --stroke:#243349;
+    --text:#e2e8f0;
+    --muted:#8ea0b8;
+    --metalla:#f59e0b;
+    --gyali:#38bdf8;
+    --pet:#22c55e;
+    --needle:#f43f5e;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #1b2740 0%, #0b1220 55%),
+      radial-gradient(800px 500px at 100% 110%, #172236 0%, transparent 60%),
+      var(--bg);
+    min-height:100vh;
+    padding:28px 20px 40px;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  h1{
+    margin:0 0 4px; font-size:1.55rem; font-weight:700; letter-spacing:.02em;
+    text-align:center;
+  }
+  .sub{color:var(--muted); margin:0 0 24px; font-size:.9rem; text-align:center}
+
+  .gauges{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(240px, 1fr));
+    gap:22px;
+    width:min(1180px,100%);
+  }
+  .gauge{
+    background:linear-gradient(180deg, #16203400 0%, #0d1626 100%),
+               linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+    border:1px solid var(--stroke);
+    border-radius:20px;
+    padding:14px 14px 6px;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .gauge::after{
+    content:"";
+    position:absolute; inset:0;
+    border-radius:20px;
+    pointer-events:none;
+    box-shadow:inset 0 0 60px rgba(56,189,248,.04);
+  }
+  .gauge h2{
+    margin:0 0 2px;
+    font-size:.95rem;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--muted);
+    text-align:center;
+    font-weight:600;
+  }
+  .gauge svg{ display:block; width:100%; height:auto; }
+
+  /* needle shadow/glow */
+  .needle{
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));
+    transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+    transform-origin:150px 150px;
+  }
+
+  /* chart panel */
+  .panel{
+    width:min(1180px,100%);
+    margin-top:22px;
+    background:linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+    border:1px solid var(--stroke);
+    border-radius:20px;
+    padding:16px 18px 10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  .panel h3{
+    margin:0 0 8px;
+    font-size:.85rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    font-weight:600;
+  }
+  canvas{width:100%!important; height:260px!important}
+
+  /* controls */
+  .controls{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    margin-top:20px;
+    width:min(1180px,100%);
+    background:linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+    border:1px solid var(--stroke);
+    border-radius:16px;
+    padding:12px 16px;
+  }
+  button{
+    background:#22314b;
+    color:var(--text);
+    border:1px solid #2f4straight;
+    border:1px solid #2f405c;
+    border-radius:10px;
+    padding:9px 16px;
+    font-size:.9rem; font-weight:600;
+    cursor:pointer;
+    transition:background .15s, transform .08s;
+  }
+  button:hover{ background:#2b3d59 }
+  button:active{ transform:translateY(1px) }
+  button:disabled{ opacity:.4; cursor:not-allowed }
+  input[type=range]{ flex:1; min-width:220px; accent-color:#38bdf8 }
+  .month-tag{
+    font-weight:700; color:#38bdf8; min-width:64px; text-align:right;
+    font-variant-numeric:tabular-nums; letter-spacing:.04em;
+  }
+
+  /* tick text */
+  .tick-label{ fill:#8ea0b8; font-size:11px; font-family:system-ui,sans-serif }
+  .unit-label{ fill:#5f7694; font-size:10px; letter-spacing:.1em; text-transform:uppercase }
+  .digital{
+    fill:#e2e8f0; font-size:20px; font-weight:700;
+    font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-variant-numeric:tabular-nums;
+  }
+  .digital-sub{ fill:#8ea0b8; font-size:9px; letter-spacing:.15em; text-transform:uppercase }
+
+  .err{ color:#f87171; font-size:.85rem; margin-top:12px; text-align:center }
+
+  @media (max-width:900px){
+    .gauges{ grid-template-columns:1fr; max-width:420px; margin:0 auto }
+  }
+</style>
+</head>
+<body>
+
+<h1>♻️ Recycling Meter — 2026</h1>
+<p class="sub" id="subtitle">Φόρτωση δεδομένων…</p>
+
+<div class="gauges" id="gauges"></div>
+
+<div class="panel">
+  <h3>Cumulative Trend</h3>
+  <canvas id="chart"></canvas>
+</div>
+
+<div class="controls">
+  <button id="playBtn">▶ Play</button>
+  <button id="resetBtn">⟲ Reset</button>
+  <input type="range" id="slider" min="0" max="0" value="0" step="1">
+  <span class="month-tag" id="monthTag">—</span>
+</div>
+<div class="err" id="err"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+/* ---------------- Config ---------------- */
+const CSV_FILE = "recycle_meter.csv";
+
+const MATERIALS = [
+  { key:"metalla", label:"Μέταλλα", color:"#f59e0b", unit:"kg" },
+  { key:"gyali",   label:"Γυαλί",   color:"#38bdf8", unit:"kg" },
+  { key:"pet",     label:"Pet",     color:"#22c55e", unit:"kg" },
+];
+
+/* Greek month map (accent-insensitive) */
+const MONTHS = {
+  "ιαν":0,"ιανουαρ":0,"jan":0,
+  "φεβ":1,"φεβρουαρ":1,"feb":1,
+  "μαρ":2,"μαρτι":2,"mar":2,
+  "απρ":3,"απριλ":3,"apr":3,
+  "μαι":4,"μαη":4,"may":4,
+  "ιουν":5,"ιουνι":5,"jun":5,
+  "ιουλ":6,"ιουλι":6,"jul":6,
+  "αυγ":7,"αυγουστ":7,"aug":7,
+  "σεπ":8,"σεπτεμβρ":8,"sep":8,
+  "οκτ":9,"οκτωβρ":9,"oct":9,
+  "νοε":10,"νοεμβρ":10,"nov":10,
+  "δεκ":11,"δεκεμβρ":11,"dec":11
+};
+
+const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+const parseNumber = v => Number(String(v).replace(/[^\d.-]/g,"")) || 0;
+
+/* ---------------- State ---------------- */
+let months = [];         // raw rows
+let cumulative = [];     // running totals per material
+let maxTotals = {};      // for gauge full-scale
+let chart, playing=false, idx=0, timer=null;
+let gauges = {};         // key -> { setValue(v) }
+
+/* ---------------- Gauge SVG builder ---------------- */
+/**
+ * Build an analog gauge with 180° sweep (-90° to +90°)
+ */
+function buildGauge(container, { key, label, color, unit }){
+  const W=300, H=210, cx=150, cy=150, r=118;
+  const START = -180;  // degrees (pointing left)
+  const END   = 0;     // degrees (pointing right)
+  const SWEEP = END - START; // 180
+
+  // Will be set later with real max
+  let maxValue = 1;
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+  /* --- outer bezel --- */
+  const bezel = document.createElementNS(svgNS,"circle");
+  bezel.setAttribute("cx", cx);
+  bezel.setAttribute("cy", cy);
+  bezel.setAttribute("r", r+14);
+  bezel.setAttribute("fill","#0d1626");
+  bezel.setAttribute("stroke","#243349");
+  bezel.setAttribute("stroke-width","2");
+  svg.appendChild(bezel);
+
+  /* --- inner dial --- */
+  const dial = document.createElementNS(svgNS,"circle");
+  dial.setAttribute("cx", cx);
+  dial.setAttribute("cy", cy);
+  dial.setAttribute("r", r);
+  dial.setAttribute("fill","url(#dialGrad-"+key+")");
+  dial.setAttribute("stroke","#1c2b44");
+  dial.setAttribute("stroke-width","1");
+  svg.appendChild(dial);
+
+  /* gradient defs */
+  const defs = document.createElementNS(svgNS,"defs");
+  defs.innerHTML = `
+    <radialGradient id="dialGrad-${key}" cx="50%" cy="35%" r="75%">
+      <stop offset="0%"  stop-color="#1a2740"/>
+      <stop offset="70%" stop-color="#101b2e"/>
+      <stop offset="100%" stop-color="#0a1220"/>
+    </radialGradient>
+    <linearGradient id="arcGrad-${key}" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="${color}" stop-opacity="0.15"/>
+      <stop offset="55%"  stop-color="${color}" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="1"/>
+    </linearGradient>
+  `;
+  svg.appendChild(defs);
+
+  /* --- colored arc (value indicator) --- */
+  const arc = document.createElementNS(svgNS,"path");
+  arc.setAttribute("fill","none");
+  arc.setAttribute("stroke",`url(#arcGrad-${key})`);
+  arc.setAttribute("stroke-width","8");
+  arc.setAttribute("stroke-linecap","round");
+  svg.appendChild(arc);
+
+  function polar(angleDeg, radius=r){
+    const a = (angleDeg - 90) * Math.PI/180;   // -90 so 0° points up; adjust below
+    return { x: cx + radius*Math.cos(a), y: cy + radius*Math.sin(a) };
+  }
+  // We want 0 at left-horizontal, 180 at right-horizontal.
+  function polarSweep(angleDeg, radius){
+    // angle 0 → 180°(west), angle 180 → 0°(east) going through the top.
+    // Map to standard: theta = 180 - angleDeg  (degrees, measured from east, CCW)
+    const theta = (180 - angleDeg) * Math.PI/180;
+    return { x: cx + radius*Math.cos(theta), y: cy - radius*Math.sin(theta) };
+  }
+
+  /* --- tick marks --- */
+  const tickGroup = document.createElementNS(svgNS,"g");
+  const NUM_MAJOR = 10;
+  for(let i=0;i<=NUM_MAJOR;i++){
+    const frac = i/NUM_MAJOR;
+    const ang  = START + frac*SWEEP;      // -180..0
+    const isMajor = true;
+    const outer = polarSweep(180 - (ang+180), r-6);   // push through top
+    // Simpler: rebuild with our own mapping
+    const ang2 = frac*180;                // 0..180 sweep left→right through top
+    const p1 = polarSweep(ang2, r-2);
+    const p2 = polarSweep(ang2, r - (i%5===0 ? 18 : 10));
+    const tick = document.createElementNS(svgNS,"line");
+    tick.setAttribute("x1",p1.x); tick.setAttribute("y1",p1.y);
+    tick.setAttribute("x2",p2.x); tick.setAttribute("y2",p2.y);
+    tick.setAttribute("stroke", i%5===0 ? "#94a3b8" : "#3a4b63");
+    tick.setAttribute("stroke-width", i%5===0 ? 2 : 1);
+    tick.setAttribute("stroke-linecap","round");
+    tickGroup.appendChild(tick);
+  }
+  svg.appendChild(tickGroup);
+
+  /* --- tick labels (0 .. max) --- */
+  const labelGroup = document.createElementNS(svgNS,"g");
+  for(let i=0;i<=5;i++){
+    const frac = i/5;
+    const ang2 = frac*180;
+    const p = polarSweep(ang2, r-34);
+    const t = document.createElementNS(svgNS,"text");
+    t.setAttribute("x", p.x);
+    t.setAttribute("y", p.y+4);
+    t.setAttribute("text-anchor","middle");
+    t.setAttribute("class","tick-label");
+    t.dataset.frac = frac;
+    t.textContent = "—";
+    labelGroup.appendChild(t);
+  }
+  svg.appendChild(labelGroup);
+
+  /* --- needle --- */
+  const needleG = document.createElementNS(svgNS,"g");
+  needleG.setAttribute("class","needle");
+  needleG.setAttribute("transform", `rotate(-90 ${cx} ${cy})`);
+
+  const needle = document.createElementNS(svgNS,"path");
+  needle.setAttribute("d", `M ${cx-6} ${cy} L ${cx} ${cy - r + 8} L ${cx+6} ${cy} Z`);
+  needle.setAttribute("fill", color);
+  needleG.appendChild(needle);
+
+  // hub
+  const hubOuter = document.createElementNS(svgNS,"circle");
+  hubOuter.setAttribute("cx",cx); hubOuter.setAttribute("cy",cy);
+  hubOuter.setAttribute("r",10);
+  hubOuter.setAttribute("fill","#0d1626");
+  hubOuter.setAttribute("stroke", color);
+  hubOuter.setAttribute("stroke-width","2");
+  needleG.appendChild(hubOuter);
+
+  const hubInner = document.createElementNS(svgNS,"circle");
+  hubInner.setAttribute("cx",cx); hubInner.setAttribute("cy",cy);
+  hubInner.setAttribute("r",4);
+  hubInner.setAttribute("fill", color);
+  needleG.appendChild(hubInner);
+
+  svg.appendChild(needleG);
+
+  /* --- digital readout --- */
+  const digital = document.createElementNS(svgNS,"text");
+  digital.setAttribute("x", cx);
+  digital.setAttribute("y", cy - 55);
+  digital.setAttribute("text-anchor","middle");
+  digital.setAttribute("class","digital");
+  digital.textContent = "0";
+  svg.appendChild(digital);
+
+  const digitalSub = document.createElementNS(svgNS,"text");
+  digitalSub.setAttribute("x", cx);
+  digitalSub.setAttribute("y", cy - 36);
+  digitalSub.setAttribute("text-anchor","middle");
+  digitalSub.setAttribute("class","digital-sub");
+  digitalSub.textContent = unit;
+  svg.appendChild(digitalSub);
+
+  /* --- top label --- */
+  const title = document.createElementNS(svgNS,"text");
+  title.setAttribute("x", cx);
+  title.setAttribute("y", 26);
+  title.setAttribute("text-anchor","middle");
+  title.setAttribute("class","unit-label");
+  title.setAttribute("fill", color);
+  title.textContent = label;
+  svg.appendChild(title);
+
+  container.appendChild(svg);
+
+  /* --- API --- */
+  function setMax(v){
+    maxValue = Math.max(1, v);
+    // rounded "nice" max for gauge display
+    const mag = Math.pow(10, Math.floor(Math.log10(maxValue)));
+    const nice = Math.ceil(maxValue / mag) * mag;
+    maxValue = nice;
+
+    // update labels
+    [...labelGroup.children].forEach(t => {
+      const frac = Number(t.dataset.frac);
+      t.textContent = formatShort(frac * maxValue);
+    });
+
+    // update arc full range path
+    const pStart = polarSweep(0, r-4);
+    const pEnd   = polarSweep(180, r-4);
+    arc.setAttribute("d", `M ${pStart.x} ${pStart.y} A ${r-4} ${r-4} 0 0 1 ${pEnd.x} ${pEnd.y}`);
+    arc.setAttribute("opacity","0.18");
+  }
+
+  function setValue(v){
+    v = Math.max(0, v);
+    const frac = Math.min(1, v / maxValue);
+    const ang  = frac * 180;                     // 0..180
+
+    // needle rotates from -90 (pointing left) to +90 (pointing right)
+    const rotation = -90 + ang;
+    needleG.setAttribute("transform", `rotate(${rotation} ${cx} ${cy})`);
+
+    // digital
+    digital.textContent = Math.round(v).toLocaleString("el-GR");
+
+    // live arc
+    const pStart = polarSweep(0, r-4);
+    const pEnd   = polarSweep(ang, r-4);
+    const largeArc = ang > 180 ? 1 : 0;
+    if(ang > 0.5){
+      arc.setAttribute("opacity","1");
+      arc.setAttribute("d",
+        `M ${pStart.x} ${pStart.y} A ${r-4} ${r-4} 0 ${largeArc} 1 ${pEnd.x} ${pEnd.y}`
+      );
+    } else {
+      arc.setAttribute("opacity","0");
+    }
+  }
+
+  return { setMax, setValue };
+}
+
+function formatShort(v){
+  if(v >= 1_000_000) return (v/1_000_000).toFixed(v%1_000_000===0?0:1)+"M";
+  if(v >= 1_000)     return (v/1_000).toFixed(v%1_000===0?0:0)+"k";
+  return String(Math.round(v));
+}
+
+/* ---------------- Load CSV ---------------- */
+async function loadCSV(){
+  let text;
+  try{
+    const res = await fetch(CSV_FILE, {cache:"no-store"});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    text = await res.text();
+  }catch(e){
+    document.getElementById("err").textContent =
+      "⚠️ Δεν ήταν δυνατή η φόρτωση του " + CSV_FILE +
+      " — σερβίρισε τη σελίδα μέσω http(s) (π.χ. GitHub Pages ή `python -m http.server`).";
+    document.getElementById("subtitle").textContent = "Σφάλμα φόρτωσης.";
+    return;
+  }
+
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  if(lines.length < 2){ showError("Το CSV δεν έχει αρκετές γραμμές."); return; }
+
+  const delim = lines[0].includes(";") ? ";" : ",";
+  const header = lines[0].split(delim).map(s => s.trim());
+  const headerNorm = header.map(norm);
+
+  const iMonth = 0;
+  const iMet = headerNorm.findIndex(h => h.includes("μεταλ") || h.includes("metall"));
+  const iGya = headerNorm.findIndex(h => h.includes("γυαλ") || h.includes("glass"));
+  const iPet = headerNorm.findIndex(h => h.includes("pet"));
+
+  if(iMet<0 || iGya<0 || iPet<0){
+    showError("Δεν βρέθηκαν οι στήλες Μέταλλα / Γυαλί / Pet. Header: " + header.join(" | "));
+    return;
+  }
+
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    const cells = lines[i].split(delim);
+    if(cells.length <= Math.max(iMet,iGya,iPet)) continue;
+    const label = cells[iMonth].trim();
+    if(!label) continue;
+    rows.push({
+      label,
+      metalla: parseNumber(cells[iMet]),
+      gyali:   parseNumber(cells[iGya]),
+      pet:     parseNumber(cells[iPet])
+    });
+  }
+
+  rows.sort((a,b)=>{
+    const ka = MONTHS[norm(a.label)] ?? 99;
+    const kb = MONTHS[norm(b.label)] ?? 99;
+    return ka - kb;
+  });
+
+  months = rows;
+  cumulative = [];
+  let cM=0,cG=0,cP=0;
+  for(const r of rows){
+    cM+=r.metalla; cG+=r.gyali; cP+=r.pet;
+    cumulative.push({ label:r.label, metalla:cM, gyali:cG, pet:cP });
+  }
+
+  const last = cumulative[cumulative.length-1];
+  maxTotals = { metalla:last.metalla, gyali:last.gyali, pet:last.pet };
+
+  document.getElementById("subtitle").textContent =
+    `${rows.length} μήνες • Τελευταίος: ${last.label} • Σύνολο: ${(last.metalla+last.gyali+last.pet).toLocaleString("el-GR")} kg`;
+
+  buildGauges();
+  buildChart();
+
+  const slider = document.getElementById("slider");
+  slider.max = cumulative.length;
+  slider.value = 0;
+
+  render(0);
+}
+
+function showError(msg){
+  document.getElementById("err").textContent = "⚠️ " + msg;
+  document.getElementById("subtitle").textContent = "Σφάλμα.";
+}
+
+/* ---------------- Build gauges ---------------- */
+function buildGauges(){
+  const host = document.getElementById("gauges");
+  host.innerHTML = "";
+  gauges = {};
+
+  for(const m of MATERIALS){
+    const card = document.createElement("div");
+    card.className = "gauge";
+    const h2 = document.createElement("h2");
+    h2.textContent = m.label;
+    h2.style.color = m.color;
+    card.appendChild(h2);
+    host.appendChild(card);
+
+    const g = buildGauge(card, m);
+    g.setMax(maxTotals[m.key]);
+    g.setValue(0);
+    gauges[m.key] = g;
+  }
+}
+
+/* ---------------- Chart ---------------- */
+function buildChart(){
+  const ctx = document.getElementById("chart").getContext("2d");
+  chart = new Chart(ctx, {
+    type:"line",
+    data:{
+      labels: cumulative.map(c => c.label),
+      datasets: MATERIALS.map(m => ({
+        label: m.label,
+        key: m.key,
+        data: cumulative.map(c => c[m.key]),
+        borderColor: m.color,
+        backgroundColor: m.color + "22",
+        borderWidth: 2.5,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        fill: true
+      }))
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:{ duration:250 },
+      interaction:{ mode:"index", intersect:false },
+      plugins:{
+        legend:{ labels:{ color:"#e2e8f0", usePointStyle:true, boxWidth:8 } },
+        tooltip:{
+          callbacks:{
+            label: c => ` ${c.dataset.label}: ${Math.round(c.parsed.y).toLocaleString("el-GR")} kg`
+          }
+        }
+      },
+      scales:{
+        x:{ ticks:{ color:"#8ea0b8" }, grid:{ color:"#1e2b42" } },
+        y:{
+          beginAtZero:true,
+          ticks:{ color:"#8ea0b8", callback:v => Number(v).toLocaleString("el-GR") },
+          grid:{ color:"#1e2b42" }
+        }
+      }
+    }
+  });
+}
+
+/* ---------------- Render frame ---------------- */
+function render(step){
+  idx = step;
+  const N = cumulative.length;
+
+  const cur = step === 0
+    ? { metalla:0, gyali:0, pet:0 }
+    : cumulative[step-1];
+
+  // gauges
+  gauges.metalla.setValue(cur.metalla);
+  gauges.gyali.setValue(cur.gyali);
+  gauges.pet.setValue(cur.pet);
+
+  // chart reveal
+  chart.data.datasets.forEach(d => {
+    d.data = cumulative.map((c,i) => i < step ? c[d.key] : null);
+  });
+  chart.update("none");
+
+  document.getElementById("monthTag").textContent =
+    step === 0 ? "—" : cumulative[step-1].label;
+  document.getElementById("slider").value = step;
+}
+
+/* ---------------- Playback ---------------- */
+function play(){
+  if(playing) return;
+  const N = cumulative.length;
+  if(idx >= N){ idx = 0; render(0); }
+
+  playing = true;
+  document.getElementById("playBtn").disabled = true;
+  timer = setInterval(() => {
+    if(idx >= N){ stop(); return; }
+    render(idx + 1);
+    if(idx >= N) stop();
+  }, 900);
+}
+
+function stop(){
+  playing = false;
+  clearInterval(timer);
+  document.getElementById("playBtn").disabled = false;
+  document.getElementById("playBtn").textContent = "▶ Play";
+}
+
+/* ---------------- Wire up ---------------- */
+document.getElementById("playBtn").addEventListener("click", ()=>{
+  if(playing){ stop(); }
+  else { document.getElementById("playBtn").textContent = "⏸ Pause"; play(); }
+});
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  stop();
+  document.getElementById("playBtn").textContent = "▶ Play";
+  render(0);
+});
+document.getElementById("slider").addEventListener("input", e=>{
+  stop();
+  document.getElementById("playBtn").textContent = "▶ Play";
+  render(Number(e.target.value));
+});
+
+loadCSV();
+</script>
+</body>
+</html>
