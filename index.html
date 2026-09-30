@@ -2,337 +2,330 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>♻️ Πρόοδος Ανακύκλωσης 2026</title>
+<title>Recycling Meter 2026 — Cumulative Animation</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  :root {
-    --bg: #0f172a;
-    --panel: #1e293b;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
-    --accent: #34d399;
+  :root{
+    --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8;
+    --metalla:#f59e0b; --gyali:#38bdf8; --pet:#22c55e;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    min-height: 100vh;
-    background: radial-gradient(circle at 20% 0%, #1e293b 0%, #0f172a 60%);
-    color: var(--text);
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 32px 16px;
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(circle at 20% 0%,#1e293b 0%,#0f172a 60%);
+    color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
   }
-  header { text-align: center; margin-bottom: 24px; }
-  h1 { font-size: 2rem; margin: 0 0 8px; letter-spacing: 0.5px; }
-  header p { margin: 0; color: var(--muted); font-size: 0.95rem; }
-  .card {
-    width: min(1100px, 100%);
-    background: var(--panel);
-    border-radius: 18px;
-    padding: 20px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  .wrap{width:min(1000px,100%)}
+  h1{margin:0 0 4px;font-size:1.5rem;font-weight:600}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:.9rem}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+  .card{
+    background:var(--card);border-radius:14px;padding:14px 16px;
+    border:1px solid #334155;position:relative;overflow:hidden;
   }
-  #chart { width: 100%; height: 700px; }
-  #loader {
-    text-align: center;
-    padding: 40px 20px;
+  .card .label{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .card .value{font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums;margin-top:6px}
+  .card .bar{position:absolute;left:0;bottom:0;height:3px;width:0%;transition:width .2s linear}
+  .card.m .bar{background:var(--metalla)} .card.m .value{color:var(--metalla)}
+  .card.g .bar{background:var(--gyali)}   .card.g .value{color:var(--gyali)}
+  .card.p .bar{background:var(--pet)}     .card.p .value{color:var(--pet)}
+
+  .chart-box{background:var(--card);border:1px solid #334155;border-radius:14px;padding:18px}
+  canvas{width:100%!important;height:420px!important}
+
+  .controls{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
+  button{
+    background:#334155;color:var(--text);border:0;border-radius:9px;
+    padding:10px 18px;font-size:.9rem;font-weight:600;cursor:pointer;
+    transition:background .15s;
   }
-  #loader p { color: var(--muted); margin: 0 0 20px; font-size: 1rem; }
-  #loader button,
-  #loader label {
-    display: inline-block;
-    background: var(--accent);
-    color: #0f172a;
-    border: none;
-    padding: 12px 24px;
-    font-size: 1rem;
-    font-weight: 600;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-  }
-  #loader button:hover,
-  #loader label:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(52, 211, 153, 0.35);
-  }
-  #loader input[type="file"] { display: none; }
-  #loader .hint {
-    color: var(--muted);
-    font-size: 0.85rem;
-    margin-top: 16px;
-    line-height: 1.5;
-  }
-  #loader code {
-    background: rgba(148,163,184,0.15);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.85em;
-  }
-  footer { margin-top: 20px; color: var(--muted); font-size: 0.85rem; }
+  button:hover{background:#475569}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input[type=range]{flex:1;min-width:200px;accent-color:#38bdf8}
+  .month-tag{font-weight:700;color:#38bdf8;min-width:70px;text-align:right}
+  .err{color:#f87171;font-size:.85rem;margin-top:10px}
 </style>
 </head>
 <body>
+<div class="wrap">
+  <h1>♻️ Recycling Meter — Cumulative 2026</h1>
+  <p class="sub" id="subtitle">Φόρτωση δεδομένων…</p>
 
-<header>
-  <h1>♻️ Πρόοδος Ανακύκλωσης 2026</h1>
-  <p>Σωρευτική συλλογή μετάλλου, γυαλιού και PET</p>
-</header>
-
-<div class="card">
-  <div id="chart" style="display:none;"></div>
-  <div id="loader">
-    <p id="loaderMsg">Φόρτωση του <code>recycle_meter.csv</code>…</p>
-    <label for="csvInput" id="fileLabel" style="display:none;">
-      📂 Επιλογή αρχείου CSV
-    </label>
-    <input type="file" id="csvInput" accept=".csv,text/csv">
-    <div class="hint" id="loaderHint" style="display:none;">
-      Λόγω περιορισμών ασφαλείας του browser όταν ανοίγει τοπικά (file://),
-      παρακαλώ επιλέξτε το <code>recycle_meter.csv</code> από τον ίδιο φάκελο.<br>
-      Ή σερβίρετε τη σελίδα μέσω HTTP (π.χ. <code>python -m http.server</code>)
-      για αυτόματη φόρτωση.
-    </div>
+  <div class="cards">
+    <div class="card m"><div class="label">Μέταλλα</div><div class="value" id="v-metalla">0</div><div class="bar" id="b-metalla"></div></div>
+    <div class="card g"><div class="label">Γυαλί</div><div class="value" id="v-gyali">0</div><div class="bar" id="b-gyali"></div></div>
+    <div class="card p"><div class="label">Pet</div><div class="value" id="v-pet">0</div><div class="bar" id="b-pet"></div></div>
   </div>
+
+  <div class="chart-box">
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="controls">
+    <button id="playBtn">▶ Play</button>
+    <button id="resetBtn">⟲ Reset</button>
+    <input type="range" id="slider" min="0" max="0" value="0" step="1">
+    <span class="month-tag" id="monthTag">—</span>
+  </div>
+  <div class="err" id="err"></div>
 </div>
 
-<footer>Πατήστε ▶ Play ή σύρετε το slider για να δείτε κάθε μήνα.</footer>
-
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-
 <script>
-// ===============================================================
-// Config
-// ===============================================================
-const CSV_FILE = 'recycle_meter.csv';
-const MATERIALS = ['metal', 'glass', 'pet'];
-const COLOR_MAP = {
-  metal: '#94a3b8',
-  glass: '#34d399',
-  pet:   '#60a5fa'
-};
-const MATERIAL_LABELS = {
-  metal: 'Μέταλλο',
-  glass: 'Γυαλί',
-  pet:   'PET'
-};
+// ---------- Config ----------
+const CSV_FILE = "recycle_meter.csv";
+const COLORS = { metalla:"#f59e0b", gyali:"#38bdf8", pet:"#22c55e" };
 
-// ===============================================================
-// Helpers
-// ===============================================================
-function parseCSV(text) {
-  // Strip BOM if present
-  text = text.replace(/^\uFEFF/, '');
-  const lines = text.trim().split(/\r?\n/);
-  const headers = lines[0].split(';').map(h => h.trim());
-  return lines.slice(1).filter(l => l.trim()).map(line => {
-    const cells = line.split('΄;').map(c => c.trim());
-    const row = {};
-    headers.forEach((h, i) => row[h] = cells[i]);
-    return row;
-  });
+// Map Greek month abbreviations -> index 0..11
+const MONTHS = {
+  "ιαν":0,"ιανουαρ":0,"jan":0,
+  "φεβ":1,"φεβρουαρ":1,"feb":1,
+  "μαρ":2,"μαρτι":2,"mar":2,
+  "απρ":3,"απριλ":3,"apr":3,
+  "μαϊ":4,"μαι":4,"μαη":4,"may":4,
+  "ιουν":5,"ιουνι":5,"jun":5,
+  "ιουλ":6,"ιουλι":6,"jul":6,
+  "αυγ":7,"αυγουστ":7,"aug":7,
+  "σεπ":8,"σεπτεμβρ":8,"sep":8,
+  "οκτ":9,"οκτωβρ":9,"oct":9,
+  "νοε":10,"νοεμβρ":10,"nov":10,
+  "δεκ":11,"δεκεμβρ":11,"dec":11
+};
+const MONTH_LABELS = ["Ιαν","Φεβ","Μαρ","Απρ","Μαϊ","Ιουν","Ιουλ","Αυγ","Σεπ","Οκτ","Νοε","Δεκ"];
+
+// normalize greek (accent-insensitive) + lowercase
+function norm(s){
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+}
+function parseNumber(v){
+  return Number(String(v).replace(/[^\d.-]/g,"")) || 0;
 }
 
-function formatNumber(n) {
-  return new Intl.NumberFormat('el-GR').format(n);
-}
+// ---------- State ----------
+let months = [];        // [{label, metalla, gyali, pet}]
+let cumulative = [];    // running totals
+let maxTotals = { metalla:1, gyali:1, pet:1 };
+let chart, playing=false, idx=0, timer=null;
 
-// ===============================================================
-// Build the chart with CUMULATIVE totals per frame
-// ===============================================================
-function buildChart(rows) {
-  if (!rows.length) {
-    showError('Το αρχείο CSV είναι κενό.');
+// ---------- Load CSV ----------
+async function loadCSV(){
+  let text;
+  try{
+    const res = await fetch(CSV_FILE, {cache:"no-store"});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    text = await res.text();
+  }catch(e){
+    document.getElementById("err").textContent =
+      "⚠️ Δεν ήταν δυνατή η φόρτωση του " + CSV_FILE +
+      " — βεβαιώσου ότι είναι στον ίδιο φάκελο και ότι σερβίρεις τη σελίδα μέσω http(s) (π.χ. python -m http.server), όχι file://";
+    document.getElementById("subtitle").textContent = "Σφάλμα φόρτωσης.";
     return;
   }
 
-  const monthLabels = rows.map(r => r.month);
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  if(lines.length < 2){ showError("Το CSV δεν έχει αρκετές γραμμές."); return; }
 
-  // Accumulate running totals
-  const cumulative = [];
-  const running = { metal: 0, glass: 0, pet: 0 };
-  rows.forEach(r => {
-    MATERIALS.forEach(m => running[m] += (+r[m] || 0));
-    cumulative.push({ month: r.month, ...running });
-  });
+  // detect delimiter
+  const delim = lines[0].includes(";") ? ";" : ",";
 
-  const maxVal = Math.max(
-    ...cumulative.flatMap(r => MATERIALS.map(m => +r[m] || 0))
-  );
+  // header (first line) -> find material columns
+  const header = lines[0].split(delim).map(s => s.trim());
+  const headerNorm = header.map(norm);
+  const iMonth  = 0;
+  const iMet    = headerNorm.findIndex(h => h.includes("μεταλ") || h.includes("metall"));
+  const iGya    = headerNorm.findIndex(h => h.includes("γυαλ") || h.includes("glass"));
+  const iPet    = headerNorm.findIndex(h => h.includes("pet"));
 
-  const frames = cumulative.map((r, i) => ({
-    name: monthLabels[i],
-    data: MATERIALS.map(mat => ({
-      type: 'bar',
-      orientation: 'h',
-      name: MATERIAL_LABELS[mat],
-      y: [monthLabels[i]],
-      x: [+r[mat] || 0],
-      marker: { color: COLOR_MAP[mat] },
-      text: [formatNumber(+r[mat] || 0)],
-      textposition: 'outside',
-      cliponaxis: false,
-      hovertemplate:
-        `<b>${MATERIAL_LABELS[mat]}</b><br>` +
-        `Έως ${monthLabels[i]} 2026: %{x:,} kg<extra></extra>`
-    })),
-    layout: {
-      title: { text: `♻️ Σύνολο έως ${monthLabels[i]} 2026` }
-    }
-  }));
+  if(iMet<0 || iGya<0 || iPet<0){
+    showError("Δεν βρέθηκαν οι στήλες Μέταλλα / Γυαλί / Pet στο header: " + header.join(" | "));
+    return;
+  }
 
-  const layout = {
-    title: {
-      text: `♻️ Σύνολο έως ${monthLabels[0]} 2026`,
-      font: { size: 22, color: '#e2e8f0' },
-      x: 0.5
-    },
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#e2e8f0', family: 'Segoe UI, Arial' },
-    barmode: 'group',
-    bargap: 0.45,
-    bargroupgap: 0.12,
-    xaxis: {
-      title: 'Σωρευτική ποσότητα (τεμάχια)',
-      gridcolor: 'rgba(148,163,184,0.15)',
-      zerolinecolor: 'rgba(148,163,184,0.3)',
-      range: [0, maxVal * 1.25],
-      tickformat: ',.0f',
-      separatethousands: true
-    },
-    yaxis: {
-      title: 'Μήνας',
-      gridcolor: 'rgba(148,163,184,0.08)',
-      type: 'category'
-    },
-    legend: {
-      orientation: 'h',
-      y: 1.1, x: 0.5, xanchor: 'center',
-      font: { size: 13 }
-    },
-    margin: { l: 100, r: 90, t: 110, b: 100 },
-    height: 700,
-    updatemenus: [{
-      type: 'buttons',
-      direction: 'left',
-      x: 0.02, y: 1.16,
-      showactive: false,
-      buttons: [
-        {
-          label: '▶ Play',
-          method: 'animate',
-          args: [null, {
-            frame: { duration: 900, redraw: true },
-            fromcurrent: true,
-            transition: { duration: 400, easing: 'cubic-in-out' }
-          }]
-        },
-        {
-          label: '⏸ Pause',
-          method: 'animate',
-          args: [[null], {
-            frame: { duration: 0, redraw: true },
-            mode: 'immediate',
-            transition: { duration: 0 }
-          }]
-        }
-      ]
-    }],
-    sliders: [{
-      active: 0,
-      x: 0.1, len: 0.85, y: -0.02,
-      currentvalue: {
-        prefix: 'Μήνας: ',
-        font: { size: 14, color: '#e2e8f0' }
-      },
-      font: { color: '#e2e8f0' },
-      steps: monthLabels.map(label => ({
-        label,
-        method: 'animate',
-        args: [[label], {
-          mode: 'immediate',
-          frame: { duration: 500, redraw: true },
-          transition: { duration: 300 }
-        }]
-      }))
-    }]
-  };
-
-  // Hide loader, show chart
-  document.getElementById('loader').style.display = 'none';
-  document.getElementById('chart').style.display = 'block';
-
-  Plotly.newPlot('chart', frames[0].data, layout, {
-    responsive: true,
-    displayModeBar: true,
-    displaylogo: false
-  }).then(() => {
-    Plotly.addFrames('chart', frames);
-  });
-}
-
-// ===============================================================
-// Loader UI helpers
-// ===============================================================
-function showFilePicker(reason) {
-  document.getElementById('loaderMsg').textContent =
-    'Δεν ήταν δυνατή η αυτόματη φόρτωση του recycle_meter.csv.';
-  document.getElementById('fileLabel').style.display = 'inline-block';
-  const hint = document.getElementById('loaderHint');
-  hint.style.display = 'block';
-  if (reason) hint.insertAdjacentHTML('afterbegin', `<p style="color:#f87171;margin-bottom:12px;">${reason}</p>`);
-}
-
-function showError(msg) {
-  document.getElementById('loaderMsg').innerHTML =
-    `<span style="color:#f87171;">⚠️ ${msg}</span>`;
-}
-
-// ===============================================================
-// Load strategy:
-//   1. Try fetch() — works when served over HTTP
-//   2. If that fails (file:// CORS), show file picker
-//   3. User picks the CSV → read via FileReader
-// ===============================================================
-function tryFetch() {
-  fetch(CSV_FILE)
-    .then(resp => {
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      return resp.text();
-    })
-    .then(text => {
-      const rows = parseCSV(text);
-      if (!rows.length) throw new Error('Το CSV δεν περιέχει δεδομένα.');
-      buildChart(rows);
-    })
-    .catch(err => {
-      // Most likely file:// — show picker
-      showFilePicker(`(${err.message})`);
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    const cells = lines[i].split(delim);
+    if(cells.length <= Math.max(iMet,iGya,iPet)) continue;
+    const mLabel = cells[iMonth].trim();
+    if(!mLabel) continue;
+    rows.push({
+      label: mLabel,
+      metalla: parseNumber(cells[iMet]),
+      gyali:   parseNumber(cells[iGya]),
+      pet:     parseNumber(cells[iPet])
     });
+  }
+
+  // sort rows by month order
+  rows.sort((a,b)=>{
+    const ka = MONTHS[norm(a.label)] ?? 99;
+    const kb = MONTHS[norm(b.label)] ?? 99;
+    return ka - kb;
+  });
+
+  // build cumulative
+  months = rows;
+  cumulative = [];
+  let cM=0,cG=0,cP=0;
+  for(const r of rows){
+    cM += r.metalla; cG += r.gyali; cP += r.pet;
+    cumulative.push({ label:r.label, metalla:cM, gyali:cG, pet:cP });
+  }
+
+  // max per series (for progress bars)
+  const last = cumulative[cumulative.length-1];
+  maxTotals = { metalla:last.metalla, gyali:last.gyali, pet:last.pet };
+
+  // UI
+  document.getElementById("subtitle").textContent =
+    `${rows.length} μήνες • Τελευταίος: ${last.label} • Σύνολο: ${(last.metalla+last.gyali+last.pet).toLocaleString("el-GR")}`;
+
+  const slider = document.getElementById("slider");
+  slider.max = cumulative.length;   // 0..N (0 = empty state)
+  slider.value = 0;
+
+  buildChart();
+  render(0);
 }
 
-// File input handler
-document.getElementById('csvInput').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const rows = parseCSV(ev.target.result);
-      if (!rows.length) throw new Error('Το CSV δεν περιέχει δεδομένα.');
-      buildChart(rows);
-    } catch (err) {
-      showError('Σφάλμα ανάγνωσης CSV: ' + err.message);
+function showError(msg){
+  document.getElementById("err").textContent = "⚠️ " + msg;
+  document.getElementById("subtitle").textContent = "Σφάλμα.";
+}
+
+// ---------- Chart ----------
+function buildChart(){
+  const ctx = document.getElementById("chart").getContext("2d");
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: cumulative.map(c => c.label),
+      datasets: [
+        ds("Μέταλλα", "metalla", COLORS.metalla),
+        ds("Γυαλί",   "gyali",   COLORS.gyali),
+        ds("Pet",     "pet",     COLORS.pet)
+      ]
+    },
+    options: {
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:{duration:250},
+      interaction:{mode:"index", intersect:false},
+      plugins:{
+        legend:{ labels:{ color:"#e2e8f0", usePointStyle:true, boxWidth:8 } },
+        tooltip:{
+          callbacks:{
+            label: c => ` ${c.dataset.label}: ${Math.round(c.parsed.y).toLocaleString("el-GR")}`
+          }
+        }
+      },
+      scales:{
+        x:{ ticks:{ color:"#94a3b8" }, grid:{ color:"#334155" } },
+        y:{
+          beginAtZero:true,
+          ticks:{ color:"#94a3b8", callback: v => Number(v).toLocaleString("el-GR") },
+          grid:{ color:"#334155" }
+        }
+      }
     }
+  });
+}
+
+function ds(label, key, color){
+  return {
+    label, key,
+    data: cumulative.map(c => c[key]),
+    borderColor: color,
+    backgroundColor: color + "33",
+    borderWidth: 3,
+    pointRadius: 3,
+    pointHoverRadius: 6,
+    tension: 0.3,
+    fill: true
   };
-  reader.readAsText(file, 'UTF-8');
+}
+
+// ---------- Render frame at step (0..N) ----------
+function render(step){
+  idx = step;
+  const N = cumulative.length;
+
+  // Running totals up to step (0 = all zeros)
+  const cur = step === 0
+    ? { metalla:0, gyali:0, pet:0 }
+    : cumulative[step-1];
+
+  // Cards
+  setCard("metalla", cur.metalla, maxTotals.metalla);
+  setCard("gyali",   cur.gyali,   maxTotals.gyali);
+  setCard("pet",     cur.pet,     maxTotals.pet);
+
+  // Chart: reveal data progressively, keep line flat at current value for future points
+  chart.data.datasets.forEach(d => {
+    d.data = cumulative.map((c, i) => i < step ? c[d.key] : null);
+  });
+  chart.update("none");
+
+  // Month tag
+  document.getElementById("monthTag").textContent =
+    step === 0 ? "—" : cumulative[step-1].label;
+
+  // Slider
+  document.getElementById("slider").value = step;
+}
+
+function setCard(key, value, max){
+  const el   = document.getElementById("v-" + key);
+  const bar  = document.getElementById("b-" + key);
+  const shown = Math.round(value);
+  el.textContent = shown.toLocaleString("el-GR");
+  bar.style.width = (max ? (value / max) * 100 : 0) + "%";
+}
+
+// ---------- Playback ----------
+function play(){
+  if(playing) return;
+  const N = cumulative.length;
+  if(idx >= N){ idx = 0; render(0); }
+
+  playing = true;
+  document.getElementById("playBtn").disabled = true;
+
+  timer = setInterval(() => {
+    if(idx >= N){
+      stop();
+      return;
+    }
+    render(idx + 1);
+    if(idx >= N) stop();
+  }, 700);   // ms per month — change to taste
+}
+
+function stop(){
+  playing = false;
+  clearInterval(timer);
+  document.getElementById("playBtn").disabled = false;
+  document.getElementById("playBtn").textContent = "▶ Play";
+}
+
+// ---------- Wire up ----------
+document.getElementById("playBtn").addEventListener("click", ()=>{
+  if(playing){ stop(); }
+  else { document.getElementById("playBtn").textContent = "⏸ Pause"; play(); }
+});
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  stop();
+  document.getElementById("playBtn").textContent = "▶ Play";
+  render(0);
+});
+document.getElementById("slider").addEventListener("input", e=>{
+  stop();
+  document.getElementById("playBtn").textContent = "▶ Play";
+  render(Number(e.target.value));
 });
 
-// Kick off
-tryFetch();
+loadCSV();
 </script>
 </body>
 </html>
